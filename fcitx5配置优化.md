@@ -1,10 +1,10 @@
 # Ubuntu 26 上 fcitx5 配置与优化
 
-本文基于 Ubuntu 26（GNOME / Wayland）环境，说明在 **系统已预装 fcitx5** 的前提下，如何安装并启用 Rime、安装候选栏主题，以及卸载多余输入法相关包。
+本文基于 Ubuntu 26（GNOME / Wayland）环境，说明在 **系统已预装 fcitx5** 的前提下，如何安装并启用 Rime + **雾凇拼音（rime-ice）**、安装候选栏主题，以及卸载多余输入法相关包。
 
 ---
 
-## 1. 配置 fcitx5 为默认输入法，并安装 / 启用 Rime
+## 1. 配置 fcitx5 为默认输入法，并安装 / 启用 Rime（雾凇）
 
 ### 1.1 确认 fcitx5 已安装
 
@@ -78,24 +78,66 @@ echo "$GTK_IM_MODULE $QT_IM_MODULE $QT_IM_MODULES $XMODIFIERS"
 pgrep -a fcitx5
 ```
 
-### 1.3 安装 Rime
+### 1.3 安装 fcitx5-rime 与雾凇拼音
+
+#### （1）安装 Rime 前端
 
 ```bash
-sudo apt install fcitx5-rime rime-data-luna-pinyin
+sudo apt install fcitx5-rime
 ```
 
-- `fcitx5-rime`：fcitx5 的 Rime 前端  
-- `rime-data-luna-pinyin`：朙月拼音等方案（含简化字方案）  
-- 依赖会自动带上 `rime-essay`、`rime-prelude`；`rime-data-stroke` 往往被 luna 依赖，勿随意删  
-
-可选其它方案（按需，非必须）：
+建议同时确认已有 Lua 插件（雾凇部分功能依赖）：
 
 ```bash
-# 示例：地球拼音、注音、仓颉（不装也不影响基础拼音）
-# sudo apt install rime-data-terra-pinyin rime-data-bopomofo rime-data-cangjie5
+dpkg -l 'librime-plugin-lua*' | awk '/^ii/{print}'
 ```
 
-### 1.4 启用 Rime
+#### （2）安装雾凇拼音（rime-ice）
+
+仓库：https://github.com/iDvel/rime-ice  
+
+面向内地简体用户，开箱即用，词库长期维护。用户目录为：
+
+```text
+~/.local/share/fcitx5/rime/
+```
+
+示例（本机已有 zip 时）：
+
+```bash
+cd ~/downloads
+unzip -o rime-ice-main.zip
+RIME_DIR=~/.local/share/fcitx5/rime
+
+# 备份 installation.yaml（若已有）
+cp -a "$RIME_DIR/installation.yaml" /tmp/rime-installation.yaml.bak 2>/dev/null || true
+
+# 拷贝雾凇文件（勿覆盖 installation.yaml；无需拷 weasel/squirrel）
+rsync -a \
+  --exclude 'build/' \
+  --exclude 'others/' \
+  --exclude 'LICENSE' \
+  --exclude 'README.md' \
+  --exclude 'AGENTS.md' \
+  --exclude 'recipe.yaml' \
+  --exclude 'weasel.yaml' \
+  --exclude 'squirrel.yaml' \
+  ~/downloads/rime-ice-main/ "$RIME_DIR/"
+
+# 恢复 installation.yaml
+cp -a /tmp/rime-installation.yaml.bak "$RIME_DIR/installation.yaml" 2>/dev/null || true
+```
+
+或用 git：
+
+```bash
+git clone --depth=1 https://github.com/iDvel/rime-ice.git
+# 再按上面方式同步到 ~/.local/share/fcitx5/rime/
+```
+
+也可用官方 plum（东风破）安装，参见雾凇仓库 README。
+
+### 1.4 在 fcitx5 中启用 Rime
 
 #### 图形界面
 
@@ -103,7 +145,7 @@ sudo apt install fcitx5-rime rime-data-luna-pinyin
 2. 左侧「输入法」→ 点 `+`  
 3. 取消「只显示当前语言」  
 4. 搜索并添加 **Rime / 中州韵**  
-5. 将不需要的输入法（如系统自带拼音）移除；把 Rime 设为组内默认  
+5. 将不需要的输入法移除；把 Rime 设为组内默认  
 
 #### 配置文件方式
 
@@ -126,49 +168,106 @@ Layout=
 然后重启 fcitx5：
 
 ```bash
-fcitx5 -r
-# 或
 fcitx5 -d -r
 ```
 
-### 1.5 托盘显示文字（可选）
+### 1.5 只启用雾凇全拼
 
-若不想用主题图标，可在「附加组件 → 经典用户界面」中勾选 **优先使用文字图标**，或编辑：
+雾凇自带的 `default.yaml` 会列出全拼、多种双拼、九键等。若只要全拼，写用户补丁：
 
-`~/.config/fcitx5/conf/classicui.conf`
-
-```ini
-PreferTextIcon=True
-TrayTextColor=#ffffff
-TrayOutlineColor=#000000
-```
-
-Rime 默认标签多为 `ㄓ`。若要改成自定义文字（如 `CN`），可写用户覆盖：
-
-`~/.local/share/fcitx5/inputmethod/rime.conf`
-
-```ini
-[InputMethod]
-Name=Rime
-Name[zh_CN]=中州韵
-Icon=fcitx-rime
-Label=CN
-LangCode=zh
-Addon=rime
-Configurable=True
-```
-
-注意：Rime 在中文态会用「方案名首字」覆盖 Label。若要完整显示多字符 Label，需给方案名加前导 `.`，例如：
-
-`~/.local/share/fcitx5/rime/luna_pinyin_simp.custom.yaml`
+`~/.local/share/fcitx5/rime/default.custom.yaml`
 
 ```yaml
 # encoding: utf-8
 patch:
-  schema/name: .cn
+  schema_list:
+    - schema: rime_ice
 ```
 
-然后重新部署 / 重启 fcitx5。英文态仍显示 `A`。
+然后重新部署（Rime 菜单「重新部署」或重启 fcitx5）：
+
+```bash
+fcitx5 -d -r
+```
+
+主要文件：
+
+```text
+~/.local/share/fcitx5/rime/rime_ice.schema.yaml   # 雾凇拼音
+~/.local/share/fcitx5/rime/rime_ice.dict.yaml
+~/.local/share/fcitx5/rime/cn_dicts/              # 词库
+~/.local/share/fcitx5/rime/lua/                   # Lua 扩展
+~/.local/share/fcitx5/rime/default.custom.yaml    # 方案列表补丁
+~/.local/share/fcitx5/rime/rime_ice.custom.yaml   # 方案显示名等补丁
+```
+
+可选双拼（若要用，在 `schema_list` 中加入对应 id）：
+
+| 方案 | schema id |
+|------|-----------|
+| 雾凇全拼 | `rime_ice` |
+| 小鹤双拼 | `double_pinyin_flypy` |
+| 自然码双拼 | `double_pinyin` |
+| 微软双拼 | `double_pinyin_mspy` |
+
+### 1.6 托盘文字与字体样式
+
+#### （1）启用托盘文字图标
+
+编辑 `~/.config/fcitx5/conf/classicui.conf`：
+
+```ini
+PreferTextIcon=True
+```
+
+开启后，**Rime 托盘文字规则**（写在 fcitx5-rime 里，不能靠普通配置关掉）：
+
+| 状态 | 托盘显示 |
+|------|----------|
+| 中文 | 当前方案 `name` 的 **第一个字** |
+| 英文 (ascii) | 固定 **A** |
+
+输入法条目仍是 **中州韵**（`Name` / `Icon`），与托盘首字无关。  
+**不要**用「方案名改成 `.cn`」这类技巧。
+
+#### （2）改托盘显示的字（方案显示名）
+
+本机示例：托盘显示 **中**，方案菜单显示 **中-雾凇拼音**。
+
+`~/.local/share/fcitx5/rime/rime_ice.custom.yaml`
+
+```yaml
+# encoding: utf-8
+# 托盘文字图标取方案名首字 → 「中」
+patch:
+  schema/name: 中-雾凇拼音
+```
+
+然后重新部署 / 重启 fcitx5：
+
+```bash
+fcitx5 -d -r
+```
+
+#### （3）候选栏字体与托盘文字样式
+
+字体**不在** Rime scheme 里配置，而在经典用户界面：
+
+`~/.config/fcitx5/conf/classicui.conf`
+
+```ini
+# 候选栏字体
+Font="SF Pro 13"
+# 菜单字体
+MenuFont="Noto Sans CJK SC Medium 11"
+# 托盘文字字体（字号、粗细影响「中」的观感）
+TrayFont="Helvetica Bold 13"
+# 托盘文字颜色 / 描边
+TrayTextColor=#ffffff
+TrayOutlineColor=#000000
+```
+
+也可在「Fcitx 5 配置 → 附加组件 → 经典用户界面」中修改。改完后重启 fcitx5。
 
 ---
 
@@ -268,7 +367,7 @@ fcitx5 -r
 
 ## 3. fcitx5 瘦身（卸载不必要的包）
 
-目标：只保留 **fcitx5 + Rime 拼音 + 必要前端**，去掉多余引擎与方案。
+目标：只保留 **fcitx5 + Rime（雾凇）+ 必要前端**，去掉多余引擎与系统自带拼音方案包。
 
 ### 3.1 建议保留
 
@@ -283,11 +382,10 @@ fcitx5-frontend-gtk4
 fcitx5-frontend-qt5           # 仍有 Qt5 程序时建议留
 fcitx5-frontend-qt6
 fcitx5-frontend-all           # 元包，依赖上面若干前端
-rime-data-luna-pinyin
-rime-data-stroke              # luna 依赖，勿单独卸
-rime-essay
-rime-prelude
+librime-plugin-lua            # 雾凇部分功能需要
+rime-essay / rime-prelude     # librime 基础数据
 librime1t64 / librime-data 等自动依赖
+# 词库与方案在用户目录雾凇文件中，不依赖 apt 的 luna 包
 ```
 
 ### 3.2 可安全卸载（示例）
@@ -327,20 +425,22 @@ sudo apt remove --purge -y \
   ibus-table-wubi
 ```
 
-#### 不用的 Rime 方案与工具
-
-在只用朙月拼音的前提下：
+#### 系统自带 Rime 方案包（已用雾凇后可卸）
 
 ```bash
 sudo apt remove --purge -y \
+  rime-data-luna-pinyin \
   rime-data-bopomofo \
   rime-data-cangjie5 \
   rime-data-terra-pinyin \
+  rime-data-stroke \
   librime-bin \
   fcitx5-frontend-gtk2
 ```
 
-**不要**卸载：`rime-data-luna-pinyin`、`rime-data-stroke`、`rime-essay`、`rime-prelude`。
+**不要**卸载：`fcitx5-rime`、`rime-essay`、`rime-prelude`、`librime-plugin-lua`。
+
+务必配合 **§1.5** 的 `default.custom.yaml`（只保留 `rime_ice`），否则方案菜单可能仍列出无效项。
 
 #### 清理孤立依赖
 
@@ -354,17 +454,20 @@ sudo apt autoremove -y
 |----|------|
 | `ibus` / `ibus-gtk*` / `ibus-data` | 被 `gnome-shell`、`ubuntu-desktop-minimal` 依赖 |
 | `fcitx5` / `fcitx5-rime` | 当前输入法核心 |
-| `rime-data-luna-pinyin` | 正在使用的拼音方案 |
+| `librime-plugin-lua` | 雾凇扩展功能依赖 |
 
 ### 3.4 瘦身后自检
 
 ```bash
-# 应能看到 fcitx5-rime 与 luna
+# 应能看到 fcitx5-rime；不应再有 rime-data-luna-pinyin
 dpkg -l 'fcitx5*' 'rime-*' | awk '/^ii/{print $2}'
 
 # 进程与当前输入法
 pgrep -a fcitx5
 fcitx5-remote -n   # 期望：rime
+
+# 雾凇方案文件
+ls ~/.local/share/fcitx5/rime/rime_ice.schema.yaml
 ```
 
 磁盘上的 fcitx5 输入法定义宜只剩 Rime：
@@ -382,9 +485,13 @@ ls /usr/share/fcitx5/inputmethod/
 |------|------|
 | 用户配置 | `~/.config/fcitx5/` |
 | 输入法列表 | `~/.config/fcitx5/profile` |
-| 经典 UI / 主题 | `~/.config/fcitx5/conf/classicui.conf` |
+| 经典 UI / 字体 / 托盘样式 | `~/.config/fcitx5/conf/classicui.conf` |
 | 用户主题 | `~/.local/share/fcitx5/themes/` |
-| Rime 用户数据 | `~/.local/share/fcitx5/rime/` |
+| Rime / 雾凇用户数据 | `~/.local/share/fcitx5/rime/` |
+| 雾凇方案 | `~/.local/share/fcitx5/rime/rime_ice.schema.yaml` |
+| 方案列表补丁 | `~/.local/share/fcitx5/rime/default.custom.yaml` |
+| 方案显示名补丁（托盘首字） | `~/.local/share/fcitx5/rime/rime_ice.custom.yaml` |
+| 雾凇上游 | https://github.com/iDvel/rime-ice |
 | 默认 IM（im-config） | `~/.xinputrc` |
 | 全局环境变量 | `/etc/environment` |
 | 自启 | `~/.config/autostart/org.fcitx.Fcitx5.desktop` |
@@ -404,6 +511,9 @@ printenv | grep -E 'IM_MODULE|XMODIFIERS'
 # 若 Qt 仍像走 ibus：确认 /etc/environment 含
 # QT_IM_MODULES=wayland;fcitx
 # 然后重新登录
+
+# 确认当前 Rime 方案列表（应含 rime_ice）
+# 可在托盘 Rime 菜单查看，或重新部署后再试输入
 ```
 
 改环境变量或 im-config 后，务必 **注销重新登录** 再验证应用程序内中文输入。
